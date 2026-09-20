@@ -1,17 +1,21 @@
 "use client";
 
+import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import ActiveClassesCard from "@/components/ActiveClassesCard";
 import ProfileCard from "@/components/ProfileCard";
+import FeedbackFormCard from "@/components/FeedbackFormCard";
+import FeedbackHistoryCard from "@/components/FeedbackHistoryCard";
+import InstructorSummaryCard from "@/components/InstructorSummaryCard";
 
 /**
  * myCDA Dashboard
  *
  * Cards are rendered based on the user's role.
- * Add your feedback-related cards below, following the same pattern.
  */
 export default function DashboardPage() {
   const { user } = useAuth();
+  const [historyRefreshTrigger, setHistoryRefreshTrigger] = useState(0);
 
   if (!user) return null;
 
@@ -27,19 +31,20 @@ export default function DashboardPage() {
         <ActiveClassesCard />
         <ProfileCard />
 
-        {/*
-          CANDIDATE: Add your feedback cards here.
+        {/* Students & Parents: Form & History Cards */}
+        {(user.role === "student" || user.role === "parent") && (
+          <>
+            <FeedbackFormCard
+              onFeedbackSubmitted={() => setHistoryRefreshTrigger((prev) => prev + 1)}
+            />
+            <FeedbackHistoryCard refreshTrigger={historyRefreshTrigger} />
+          </>
+        )}
 
-          - Students & parents should see:
-            1. A way to submit feedback for eligible sessions
-            2. Their feedback history
-
-          - Instructors should see:
-            1. Their aggregated feedback summary (anonymized)
-
-          Use role-conditional rendering like the pattern above.
-          Wrap each card in <DashboardCard>.
-        */}
+        {/* Instructors & Admins: Aggregated Summary Card */}
+        {(user.role === "instructor" || user.role === "admin") && (
+          <InstructorSummaryCard />
+        )}
       </div>
     </div>
   );

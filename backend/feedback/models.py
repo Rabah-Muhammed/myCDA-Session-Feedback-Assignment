@@ -61,5 +61,9 @@ class SessionFeedback(models.Model):
         """Bridge property so BaseModelSerializer can read the author."""
         return self.submitter
 
+    @created_by.setter
+    def created_by(self, value):
+        self.submitter = value
+
     def __str__(self):
         return f"Feedback: {self.student.get_display_name()} for {self.session}"

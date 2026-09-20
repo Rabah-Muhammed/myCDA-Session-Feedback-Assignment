@@ -23,6 +23,11 @@ class SessionFeedbackSerializer(BaseModelSerializer):
     session_date = serializers.DateTimeField(
         source="session.scheduled_date", read_only=True
     )
+    student = serializers.PrimaryKeyRelatedField(
+        queryset=User.objects.filter(role="student"),
+        required=False,
+        allow_null=True,
+    )
 
     class Meta:
         model = SessionFeedback
@@ -48,9 +53,7 @@ class SessionFeedbackSerializer(BaseModelSerializer):
             "created_at",
             "updated_at",
         ]
-        extra_kwargs = {
-            "student": {"required": False},  # Optional for students (defaults to self)
-        }
+        validators = []  # Handled in validate() to allow student to default to logged-in user
 
     def validate(self, attrs):
         request_user = get_current_user()

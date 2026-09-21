@@ -21,8 +21,9 @@ A single general 5-star rating is too vague for instructors to take actionable p
 This provides instructors with specific diagnostic feedback on what to adjust for the next session.
 
 ### 1.3 Uniqueness on `(session, student)`
-The uniqueness constraint is placed on `(session, student)` rather than `(session, submitter)`. 
-If a parent submits a review for their child for a specific session, the child should not be able to submit a duplicate review for that same session (and vice versa). Each student gets exactly one feedback entry per completed session.
+The uniqueness constraint is placed on `(session, student)` rather than `(session, submitter)`.
+
+Using `(session, submitter)` would be wrong: a parent and their child are two different submitters, so both could technically submit a review for the same session, resulting in the same student being counted twice in the instructor's aggregate scores. The model represents *whose learning experience is being reviewed*, not *who physically filled the form*. Each student gets exactly one feedback entry per completed session, regardless of whether the student or a parent submitted it.
 
 ### 1.4 The `created_by` Property Bridge
 The project's `BaseModelSerializer` expects a `created_by` field to auto-populate the author. Because our model uses `submitter` as the foreign key, I added a bridge property with a setter:
@@ -107,7 +108,18 @@ Because Python objects are passed by reference, when DRF authenticates the token
 
 ---
 
-## 5. Frontend Implementation & UX
+## 5. Convention Adherence
+
+Before writing a single line of feedback code, I read through `core/serializers.py`, `core/permissions.py`, `core/pagination.py`, and `core/middleware.py` to understand how the rest of the project is structured. The feedback app follows the same patterns throughout:
+
+- **Serializers** extend `BaseModelSerializer` (not bare `ModelSerializer`) so that `created_by` and `updated_by` are auto-populated without any manual `request.user` reads in the serializer.
+- **Permissions** use the pre-built `IsStudentOrParent` and `IsInstructorOrAdmin` classes from `core.permissions`, which are thin wrappers around `HasRole()`. No custom role-checking logic was written from scratch.
+- **Pagination** relies on `StandardPagination` inherited from the DRF settings (`DEFAULT_PAGINATION_CLASS`), so the feedback history response (`/api/v1/feedback/my/`) returns the same `{ count, page, page_size, results }` shape as every other paginated endpoint in the project.
+- **URL registration** follows the `/api/v1/feedback/` prefix, consistent with `/api/v1/classes/` and `/api/v1/accounts/`.
+
+---
+
+## 6. Frontend Implementation & UX
 
 - **Role-Conditional Cards:** Students and parents see the submission form and feedback history. Instructors and admins see the performance summary.
 - **Dynamic Session Loading:** When a student or parent selects a child, the form queries `/api/v1/feedback/eligible-sessions/` to show only sessions that are completed, within 30 days, and not yet reviewed.
@@ -116,7 +128,13 @@ Because Python objects are passed by reference, when DRF authenticates the token
 
 ---
 
-## 6. Practical Trade-offs
+## 7. Practical Trade-offs
 
-1. **Admin Instructor Selector:** In `InstructorSummaryCard.tsx`, the admin view defaults to selecting between Coach Sarah (ID: 2) and Coach Marcus (ID: 3). In a full production app, this would be backed by a dedicated `/api/v1/accounts/instructors/` dropdown endpoint.
-2. **History Pagination:** While the `/api/v1/feedback/my/` endpoint supports `StandardPagination` (20 items per page), the frontend card currently displays the first page. For a debate academy where students take 1–2 classes a week, 20 items covers several months of history, which is sufficient for the current scope.
+1. **Admin Instructor Selector:** In `InstructorSummaryCard.tsx`, the admin view hardcodes the two seeded instructors (Coach Sarah, ID: 2; Coach Marcus, ID: 3). In a production app this would be a dynamic dropdown backed by a `/api/v1/accounts/instructors/` endpoint. That endpoint doesn't exist in the starter codebase, and building it was outside the scope of the feedback feature.
+
+2. **SQLite in Development:** The project uses SQLite. The duration-weighted average logic is calculated entirely in Python rather than SQL, which means it works identically on SQLite and PostgreSQL. If the production database ever needed to move this calculation into the DB layer (e.g., for performance with thousands of sessions), the logic would need to be rewritten as a SQL window function or raw query.
+
+3. **Frontend Pagination:** The `/api/v1/feedback/my/` endpoint is paginated (20 items per page via `StandardPagination`), but the `FeedbackHistoryCard` only renders the first page. For a debate academy where a student might attend 1–2 sessions a week, 20 results covers several months of history, which is practical for the current scope. A "load more" button would be the natural next step.
+
+4. **No Rate Limiting on Submission:** The `POST /api/v1/feedback/` endpoint has no per-user rate limiting. Duplicate submissions are blocked by the `(session, student)` uniqueness constraint, but a user could still spam requests for different sessions rapidly. In production, a simple throttle class via DRF's `DEFAULT_THROTTLE_CLASSES` would handle this.
+

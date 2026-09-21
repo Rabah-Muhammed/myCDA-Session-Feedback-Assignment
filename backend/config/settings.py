@@ -12,11 +12,11 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = "dev-insecure-key-do-not-use-in-production"
+SECRET_KEY = os.environ.get("SECRET_KEY", "dev-insecure-key-do-not-use-in-production")
 
-DEBUG = True
+DEBUG = os.environ.get("DEBUG", "True").lower() in ("true", "1", "t")
 
-ALLOWED_HOSTS = ["*"]
+ALLOWED_HOSTS = [host.strip() for host in os.environ.get("ALLOWED_HOSTS", "*").split(",")]
 
 INSTALLED_APPS = [
     "django.contrib.admin",
